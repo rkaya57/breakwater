@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Breakwater: a round-based tactical shooter on the docks</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" aria-hidden="true" hidden>
+  <div id="hurt-vignette"></div>
+  <div id="top">
+    <div class="team atk"><span class="tname">Saltjackers</span><b id="score-atk">0</b><div class="pips" id="pips-atk"></div></div>
+    <div id="clock"><span id="clock-time">1:55</span><span id="clock-round">ROUND 1</span><span id="clock-bomb" hidden>CHARGE PLANTED</span></div>
+    <div class="team def"><span class="tname">Tidewardens</span><b id="score-def">0</b><div class="pips" id="pips-def"></div></div>
+  </div>
+  <canvas id="radar" width="200" height="200"></canvas>
+  <div id="callout"></div>
+  <div id="killfeed"></div>
+  <div id="carrier" hidden>&#9673; CARRYING THE CHARGE</div>
+  <div id="money">$<span id="money-v">800</span></div>
+  <div id="vitals"><div class="stat"><small>HP</small><b id="hp">100</b></div><div class="stat"><small>ARMOR</small><b id="ar">0</b></div></div>
+  <div id="weapon"><div id="ammo"><b id="mag">12</b><span id="reserve">/ 36</span></div><div id="wname">Pike-9</div><div id="nades"></div></div>
+  <div id="reloading" hidden>RELOADING</div>
+  <div id="scope" hidden></div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="dmg"></div>
+  <div id="progress" hidden><span id="progress-label"></span><div><i id="progress-bar"></i></div></div>
+  <div id="hint"></div>
+  <div id="spectate"></div>
+  <div id="banner" hidden><h2 id="banner-title"></h2><p id="banner-sub"></p></div>
+  <div id="flash"></div>
+</div>
+
+<div id="scoreboard" hidden><table id="sb-atk"></table><table id="sb-def"></table><canvas id="overview" width="400" height="360"></canvas></div>
+<div id="buy" hidden></div>
+
+<div id="menu" class="overlay">
+  <section class="panel" role="dialog" aria-labelledby="title">
+    <h1 id="title">BREAKWATER</h1>
+    <p class="tag-line">Five against five on a harbour at dusk. The Saltjackers carry a limpet charge to the Crane Yard or the Pump House; the Tidewardens hold the docks. Buy between rounds, stop to aim, first to seven rounds.</p>
+    <div class="sides">
+      <button id="play-atk" class="side" type="button" style="--c: var(--rust)"><b>Saltjackers</b><span>Attack: plant the charge</span></button>
+      <button id="play-def" class="side" type="button" style="--c: var(--teal)"><b>Tidewardens</b><span>Defend: hold or defuse</span></button>
+    </div>
+    <ul class="keys">
+      <li><kbd>W A S D</kbd> move &middot; <kbd>Shift</kbd> walk</li>
+      <li><kbd>Ctrl</kbd> crouch &middot; <kbd>Space</kbd> jump</li>
+      <li><kbd>Mouse</kbd> aim &middot; <kbd>Click</kbd> fire</li>
+      <li><kbd>Right click</kbd> scope &middot; <kbd>R</kbd> reload</li>
+      <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> weapons, grenades</li>
+      <li><kbd>E</kbd> plant / defuse &middot; <kbd>B</kbd> buy</li>
+      <li><kbd>Tab</kbd> scoreboard &amp; map</li>
+      <li><kbd>Esc</kbd> pause</li>
+    </ul>
+  </section>
+</div>
+
+<div id="pause" class="overlay" hidden>
+  <section class="panel"><h1 style="font-size:32px">Paused</h1><p class="tag-line">The round is on hold.</p><button id="resume" class="btn" type="button">Resume</button></section>
+</div>
+
+<div id="over" class="overlay" hidden>
+  <section class="panel"><h1 id="over-title" style="font-size:40px">Victory</h1><p class="tag-line">Final score <b id="over-score"></b></p><button id="again" class="btn" type="button">Play again</button></section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
