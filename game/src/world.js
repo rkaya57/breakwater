@@ -145,9 +145,7 @@ function buildWalls(group, tex, rng) {
     new THREE.MeshStandardMaterial({ map: tex.darkConcrete, roughness: 0.9 }),
   ];
   const trim = new THREE.MeshStandardMaterial({ color: 0x2a2724, roughness: 0.8 });
-  const glassLit = new THREE.MeshStandardMaterial({ color: 0xffc070, emissive: 0xffa040, emissiveIntensity: 1.1 });
-  const glassDark = new THREE.MeshStandardMaterial({ color: 0x1c2630, roughness: 0.2, metalness: 0.6 });
-  const pane = new THREE.PlaneGeometry(1.1, 1.3);
+  const plinth = new THREE.MeshStandardMaterial({ map: tex.darkConcrete, color: 0x8a8580, roughness: 0.95 });
   for (let r = 0; r < ROWS; r += 1) {
     let c = 0;
     while (c < COLS) {
@@ -160,18 +158,53 @@ function buildWalls(group, tex, rng) {
       const height = WALL_H + (id % 3) * 0.8;
       group.add(mesh(tiledBox(w, height, CELL, 4), facades[id % facades.length], x, height / 2, z));
       group.add(mesh(new THREE.BoxGeometry(w + 0.12, 0.22, CELL + 0.12), trim, x, height + 0.11, z, false));
+      // a weathered base course grounds each building where it meets the quay
+      group.add(mesh(tiledBox(w + 0.06, 0.55, CELL + 0.06, 2), plinth, x, 0.275, z, false));
       c = end + 1;
     }
   }
-  // windows on faces that look onto the playable floor
+  windows(group, rng);
+}
+
+// Windows on faces that look onto the playable floor: glass behind a frame with a cross mullion, a
+// lintel and a sill. Some are lit from inside (bright enough to bloom); the rest mirror the dusk sky.
+// Every part is one InstancedMesh, so a hundred windows cost a handful of draw calls.
+function windows(group, rng) {
+  const glassLit = new THREE.MeshStandardMaterial({ color: 0xffc070, emissive: 0xffa04a, emissiveIntensity: 2.6 });
+  const glassDark = new THREE.MeshStandardMaterial({ color: 0x7d93a0, roughness: 0.12, metalness: 0.9, envMapIntensity: 2.4 });
+  const frame = new THREE.MeshStandardMaterial({ color: 0x3b3a37, roughness: 0.55, metalness: 0.3 });
+  const stone = new THREE.MeshStandardMaterial({ color: 0x8e877c, roughness: 0.9 });
+  const spots = [];
   for (let r = 0; r < ROWS; r += 1) for (let c = 0; c < COLS; c += 1) {
     if (kindAt(c, r) !== KIND.WALL) continue;
     for (const [dc, dr, rot] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]]) {
       if (kindAt(c + dc, r + dr) !== KIND.FLOOR || !rng.chance(0.28)) continue;
-      const m = new THREE.Mesh(pane, rng.chance(0.4) ? glassLit : glassDark);
-      m.position.set(cellX(c) + dc * 1.01, 3.3, cellZ(r) + dr * 1.01);
-      m.rotation.y = rot;
-      group.add(m);
+      spots.push({ x: cellX(c) + dc * (CELL / 2), z: cellZ(r) + dr * (CELL / 2), rot, lit: rng.chance(0.4) });
+    }
+  }
+  // [width, height, depth, x, y, out-from-wall, material]
+  const parts = [
+    [1.1, 1.3, 0.02, 0, 0, 0.01, null],                  // glass
+    [1.26, 0.08, 0.1, 0, 0.69, 0.05, frame], [1.26, 0.08, 0.1, 0, -0.69, 0.05, frame],
+    [0.08, 1.46, 0.1, -0.59, 0, 0.05, frame], [0.08, 1.46, 0.1, 0.59, 0, 0.05, frame],
+    [0.05, 1.3, 0.06, 0, 0, 0.04, frame], [1.1, 0.05, 0.06, 0, 0.12, 0.04, frame],
+    [1.5, 0.18, 0.16, 0, 0.82, 0.08, stone],             // lintel
+    [1.44, 0.08, 0.24, 0, -0.78, 0.12, stone],           // sill
+  ];
+  const m4 = new THREE.Matrix4(); const q = new THREE.Quaternion(); const up = new THREE.Vector3(0, 1, 0);
+  const pos = new THREE.Vector3(); const one = new THREE.Vector3(1, 1, 1); const off = new THREE.Vector3();
+  for (const [w, h, d, px, py, out, mat] of parts) {
+    const sets = mat ? [[mat, spots]] : [[glassLit, spots.filter((s) => s.lit)], [glassDark, spots.filter((s) => !s.lit)]];
+    for (const [material, list] of sets) {
+      const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(w, h, d), material, list.length);
+      list.forEach((s, i) => {
+        q.setFromAxisAngle(up, s.rot);
+        off.set(px, py, out).applyQuaternion(q);
+        pos.set(s.x + off.x, 3.3 + off.y, s.z + off.z);
+        inst.setMatrixAt(i, m4.compose(pos, q, one));
+      });
+      inst.castShadow = !!mat; inst.receiveShadow = true;
+      group.add(inst);
     }
   }
 }

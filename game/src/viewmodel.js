@@ -18,12 +18,15 @@ export function createViewmodel(team, environment = null) {
   const rig = new THREE.Group();
   rig.scale.setScalar(0.62);
   scene.add(rig);
-  const glove = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8 });
-  const sleeve = new THREE.MeshStandardMaterial({ color: TEAMS[team].cloth, roughness: 0.85 });
-  const handR = new THREE.Group();
-  handR.add(box(0.07, 0.08, 0.1, glove, 0, -0.05, 0.02), box(0.09, 0.09, 0.3, sleeve, 0.01, -0.07, 0.22));
-  const handL = new THREE.Group();
-  handL.add(box(0.07, 0.07, 0.1, glove, 0, 0, 0), box(0.09, 0.09, 0.3, sleeve, -0.02, -0.03, 0.2));
+  const glove = new THREE.MeshStandardMaterial({ color: 0x2b2a28, roughness: 0.85 });
+  const knuckle = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 });
+  const sleeve = new THREE.MeshStandardMaterial({ color: TEAMS[team].cloth, roughness: 0.9 });
+  const cuff = new THREE.MeshStandardMaterial({ color: TEAMS[team].vest, roughness: 0.8 });
+  const handR = gloveHand(glove, knuckle, sleeve, cuff, 1);
+  const handL = gloveHand(glove, knuckle, sleeve, cuff, -1);
+  const watch = cyl(0.026, 0.012, new THREE.MeshStandardMaterial({ color: 0x15191c, roughness: 0.3, metalness: 0.7 }), 0.03, -0.035, 0.09, 16);
+  watch.rotation.set(0, 0, Math.PI / 2);
+  handL.add(watch); // a dive watch: the one thing on the support arm that catches the light
   rig.add(handR, handL);
 
   const models = buildModels();
@@ -99,6 +102,30 @@ export function createViewmodel(team, environment = null) {
   }
 
   return { onEvent, update, render };
+}
+
+// A gloved hand closed round a grip at the group origin: palm on the outside, four fingers wrapped
+// across the front, thumb over the top, a padded knuckle guard, then the wrist cuff and a sleeve that
+// runs back out of frame. side is 1 for the right hand, -1 for the left.
+function gloveHand(glove, knuckle, sleeve, cuff, side) {
+  const g = new THREE.Group();
+  g.add(box(0.032, 0.09, 0.095, glove, 0.036 * side, -0.045, 0.0));
+  g.add(box(0.012, 0.075, 0.07, knuckle, 0.054 * side, -0.04, -0.005));
+  const finger = new THREE.CapsuleGeometry(0.0125, 0.05, 3, 8).rotateZ(Math.PI / 2);
+  for (let i = 0; i < 4; i += 1) {
+    const f = new THREE.Mesh(finger, glove);
+    f.position.set(0.006 * side, -0.012 - i * 0.025, -0.047 + i * 0.003);
+    g.add(f);
+  }
+  const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.013, 0.05, 3, 8).rotateX(Math.PI / 2), glove);
+  thumb.position.set(-0.026 * side, 0.004, -0.012);
+  g.add(thumb);
+  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.047, 0.05, 0.05, 14).rotateX(Math.PI / 2), cuff);
+  wrist.position.set(0.018 * side, -0.06, 0.08);
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.32, 14).rotateX(Math.PI / 2), sleeve);
+  arm.position.set(0.022 * side, -0.07, 0.26);
+  g.add(wrist, arm);
+  return g;
 }
 
 // Weapon models. Built once per match from solids; the rig above only shows one at a time.
