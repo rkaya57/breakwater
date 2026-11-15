@@ -3,6 +3,7 @@
 
 export const STEP = 1 / 60;          // fixed simulation step (seconds)
 export const CELL = 2;               // map grid cell size (metres)
+export const EXPOSURE = 1.05;        // camera exposure, applied by the finishing pass (post.js)
 
 export const TEAM = { ATK: 0, DEF: 1 };
 export const TEAMS = [

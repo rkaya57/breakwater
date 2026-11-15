@@ -4,8 +4,126 @@
 import * as THREE from 'three';
 import { TEAMS } from './config.js';
 
+export function createViewmodel(team, environment = null) {
+  const scene = new THREE.Scene();
+  scene.environment = environment; // the harbour sky, so steel and glass reflect the dusk
+  const camera = new THREE.PerspectiveCamera(58, 1, 0.01, 10);
+  scene.add(new THREE.HemisphereLight(0xffd8b8, 0x2a3440, 1.1));
+  const key = new THREE.DirectionalLight(0xffb27a, 2.6);
+  key.position.set(-1.2, 1.6, 0.8);
+  const rim = new THREE.DirectionalLight(0x9fd0ff, 1.6); // cool sky light catching the top edges
+  rim.position.set(0.6, 1, -1);
+  scene.add(key, rim);
+
+  const rig = new THREE.Group();
+  rig.scale.setScalar(0.62);
+  scene.add(rig);
+  const glove = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8 });
+  const sleeve = new THREE.MeshStandardMaterial({ color: TEAMS[team].cloth, roughness: 0.85 });
+  const handR = new THREE.Group();
+  handR.add(box(0.07, 0.08, 0.1, glove, 0, -0.05, 0.02), box(0.09, 0.09, 0.3, sleeve, 0.01, -0.07, 0.22));
+  const handL = new THREE.Group();
+  handL.add(box(0.07, 0.07, 0.1, glove, 0, 0, 0), box(0.09, 0.09, 0.3, sleeve, -0.02, -0.03, 0.2));
+  rig.add(handR, handL);
+
+  const models = buildModels();
+  for (const k of Object.keys(models)) { models[k].visible = false; rig.add(models[k]); }
+  const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), new THREE.MeshBasicMaterial({ map: starTexture(), color: new THREE.Color(3.4, 2.3, 1.1), // brighter than white, so it blooms
+     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  rig.add(flash);
+  const flashGlow = flash.clone();
+  flashGlow.rotation.z = Math.PI / 4;
+  flashGlow.scale.setScalar(0.7);
+  rig.add(flashGlow);
+
+  const anim = { kick: 0, kickRot: 0, reload: 0, reloadTotal: 1, raise: 0, bob: 0, swayX: 0, swayY: 0, flash: 0, swing: 0, current: '' };
+
+  function show(id) {
+    if (anim.current === id) return;
+    if (models[anim.current]) models[anim.current].visible = false;
+    anim.current = id;
+    models[id].visible = true;
+    const pistol = id === 'pike' || id === 'brute';
+    const nade = id === 'frag' || id === 'smoke' || id === 'flash';
+    handL.visible = !pistol && !nade && id !== 'gaff';
+    handL.position.set(-0.02, -0.06, id === 'harpoon' ? -0.42 : id === 'wasp' ? -0.22 : -0.34);
+    handR.position.set(0, -0.08, 0.02);
+  }
+
+  function onEvent(e) {
+    if (e.type === 'shot') {
+      anim.kick = Math.min(0.09, anim.kick + (e.text === 'harpoon' ? 0.09 : e.text === 'brute' ? 0.06 : 0.035));
+      anim.kickRot = Math.min(0.25, anim.kickRot + (e.text === 'harpoon' ? 0.22 : 0.06));
+      anim.flash = 0.05;
+      flash.rotation.z += 2.1; // a new star shape each shot
+    } else if (e.type === 'reload') {
+      anim.reload = e.value; anim.reloadTotal = e.value;
+    } else if (e.type === 'switch') {
+      anim.raise = 1; anim.reload = 0;
+    } else if (e.type === 'swing' || e.type === 'throw') {
+      anim.swing = 1;
+    }
+  }
+
+  function update(dt, player, heldId, lookDX, lookDY, time) {
+    show(heldId);
+    rig.visible = player.alive && !player.scoped;
+    anim.kick = Math.max(0, anim.kick - dt * 0.35);
+    anim.kickRot = Math.max(0, anim.kickRot - dt * 1.6);
+    anim.raise = Math.max(0, anim.raise - dt * 3);
+    anim.reload = Math.max(0, anim.reload - dt);
+    anim.flash = Math.max(0, anim.flash - dt);
+    anim.swing = Math.max(0, anim.swing - dt * 3.5);
+    anim.swayX += (-lookDX * 0.0006 - anim.swayX) * Math.min(1, dt * 8);
+    anim.swayY += (lookDY * 0.0006 - anim.swayY) * Math.min(1, dt * 8);
+    const moving = player.onGround ? Math.min(1, player.speed / 5) : 0;
+    anim.bob += dt * (6 + player.speed * 1.2);
+    const bobX = Math.sin(anim.bob) * 0.012 * moving;
+    const bobY = Math.abs(Math.cos(anim.bob)) * 0.014 * moving;
+    const r = anim.reloadTotal > 0 ? anim.reload / anim.reloadTotal : 0;
+    const dip = Math.sin(Math.min(1, r) * Math.PI);
+    const crouch = player.crouching ? 0.012 : 0;
+    rig.position.set(0.19 + bobX + anim.swayX, -0.2 - bobY - dip * 0.12 - anim.raise * 0.25 + anim.swayY - crouch, -0.46 + anim.kick + anim.swing * -0.12);
+    rig.rotation.set(anim.kickRot + dip * 0.5 - anim.raise * 0.6 + anim.swing * -0.5, 0.05 + anim.swayX * 2 + Math.sin(time * 0.9) * 0.004, dip * 0.35 + anim.swing * 0.4);
+    const model = models[heldId];
+    const tip = model.userData.muzzle;
+    flash.position.copy(tip); flashGlow.position.copy(tip);
+    flash.visible = anim.flash > 0; flashGlow.visible = anim.flash > 0;
+  }
+
+  function render(renderer, aspect) {
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    renderer.clearDepth();
+    renderer.render(scene, camera);
+  }
+
+  return { onEvent, update, render };
+}
+
+// Weapon models. Built once per match from solids; the rig above only shows one at a time.
+
+// Parts thicker than a few millimetres get chamfered edges (a rounded section extruded along the
+// barrel axis) so the key and rim lights draw a bright line along every edge instead of flat faces.
+const geoCache = new Map();
+function chamfered(w, h, d) {
+  const key = `${w},${h},${d}`;
+  if (geoCache.has(key)) return geoCache.get(key);
+  const r = Math.min(w, h, d) * 0.18;
+  const iw = w / 2 - r; const ih = h / 2 - r;
+  const shape = new THREE.Shape();
+  shape.moveTo(-iw, -ih - r * 0.0);
+  shape.lineTo(iw, -ih); shape.lineTo(iw, ih); shape.lineTo(-iw, ih); shape.lineTo(-iw, -ih);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: d - r * 2, bevelEnabled: true, bevelThickness: r, bevelSize: r, bevelSegments: 2, curveSegments: 1 });
+  geo.translate(0, 0, -(d - r * 2) / 2);
+  geo.computeVertexNormals();
+  geoCache.set(key, geo);
+  return geo;
+}
+
 function box(w, h, d, mat, x, y, z) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  const geo = Math.min(w, h, d) > 0.018 ? chamfered(w, h, d) : new THREE.BoxGeometry(w, h, d);
+  const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
   return m;
 }
@@ -30,7 +148,7 @@ function sights(g, mat, y, zRear, zFront) {
 function buildModels() {
   const black = new THREE.MeshStandardMaterial({ color: 0x2c3034, roughness: 0.4, metalness: 0.55 });
   const steel = new THREE.MeshStandardMaterial({ color: 0x8b9298, roughness: 0.3, metalness: 0.85 });
-  const tan = new THREE.MeshStandardMaterial({ color: 0xa88b5c, roughness: 0.7 });
+  const tan = new THREE.MeshStandardMaterial({ color: 0x8f8268, roughness: 0.7 });
   const olive = new THREE.MeshStandardMaterial({ color: 0x4f5a3a, roughness: 0.7 });
   const wood = new THREE.MeshStandardMaterial({ color: 0x6b4325, roughness: 0.6 });
   const glass = new THREE.MeshStandardMaterial({ color: 0x3fa7c0, roughness: 0.1, metalness: 0.4, emissive: 0x0b3540 });
@@ -117,97 +235,3 @@ function starTexture() {
   return new THREE.CanvasTexture(c);
 }
 
-export function createViewmodel(team) {
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(58, 1, 0.01, 10);
-  scene.add(new THREE.HemisphereLight(0xffd8b8, 0x334455, 2.2));
-  const key = new THREE.DirectionalLight(0xffb27a, 1.6);
-  key.position.set(-1, 1.2, 1.4);
-  const rim = new THREE.DirectionalLight(0x9fd0ff, 0.9); // cool sky light catching the top edges
-  rim.position.set(0.6, 1, -1);
-  scene.add(key, rim);
-
-  const rig = new THREE.Group();
-  rig.scale.setScalar(0.7);
-  scene.add(rig);
-  const glove = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8 });
-  const sleeve = new THREE.MeshStandardMaterial({ color: TEAMS[team].cloth, roughness: 0.85 });
-  const handR = new THREE.Group();
-  handR.add(box(0.07, 0.08, 0.1, glove, 0, -0.05, 0.02), box(0.09, 0.09, 0.3, sleeve, 0.01, -0.07, 0.22));
-  const handL = new THREE.Group();
-  handL.add(box(0.07, 0.07, 0.1, glove, 0, 0, 0), box(0.09, 0.09, 0.3, sleeve, -0.02, -0.03, 0.2));
-  rig.add(handR, handL);
-
-  const models = buildModels();
-  for (const k of Object.keys(models)) { models[k].visible = false; rig.add(models[k]); }
-  const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), new THREE.MeshBasicMaterial({ map: starTexture(), color: 0xffd27a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  rig.add(flash);
-  const flashGlow = flash.clone();
-  flashGlow.rotation.z = Math.PI / 4;
-  flashGlow.scale.setScalar(0.7);
-  rig.add(flashGlow);
-
-  const anim = { kick: 0, kickRot: 0, reload: 0, reloadTotal: 1, raise: 0, bob: 0, swayX: 0, swayY: 0, flash: 0, swing: 0, current: '' };
-
-  function show(id) {
-    if (anim.current === id) return;
-    if (models[anim.current]) models[anim.current].visible = false;
-    anim.current = id;
-    models[id].visible = true;
-    const pistol = id === 'pike' || id === 'brute';
-    const nade = id === 'frag' || id === 'smoke' || id === 'flash';
-    handL.visible = !pistol && !nade && id !== 'gaff';
-    handL.position.set(-0.02, -0.06, id === 'harpoon' ? -0.42 : id === 'wasp' ? -0.22 : -0.34);
-    handR.position.set(0, -0.08, 0.02);
-  }
-
-  function onEvent(e) {
-    if (e.type === 'shot') {
-      anim.kick = Math.min(0.09, anim.kick + (e.text === 'harpoon' ? 0.09 : e.text === 'brute' ? 0.06 : 0.035));
-      anim.kickRot = Math.min(0.25, anim.kickRot + (e.text === 'harpoon' ? 0.22 : 0.06));
-      anim.flash = 0.05;
-      flash.rotation.z += 2.1; // a new star shape each shot
-    } else if (e.type === 'reload') {
-      anim.reload = e.value; anim.reloadTotal = e.value;
-    } else if (e.type === 'switch') {
-      anim.raise = 1; anim.reload = 0;
-    } else if (e.type === 'swing' || e.type === 'throw') {
-      anim.swing = 1;
-    }
-  }
-
-  function update(dt, player, heldId, lookDX, lookDY, time) {
-    show(heldId);
-    rig.visible = player.alive && !player.scoped;
-    anim.kick = Math.max(0, anim.kick - dt * 0.35);
-    anim.kickRot = Math.max(0, anim.kickRot - dt * 1.6);
-    anim.raise = Math.max(0, anim.raise - dt * 3);
-    anim.reload = Math.max(0, anim.reload - dt);
-    anim.flash = Math.max(0, anim.flash - dt);
-    anim.swing = Math.max(0, anim.swing - dt * 3.5);
-    anim.swayX += (-lookDX * 0.0006 - anim.swayX) * Math.min(1, dt * 8);
-    anim.swayY += (lookDY * 0.0006 - anim.swayY) * Math.min(1, dt * 8);
-    const moving = player.onGround ? Math.min(1, player.speed / 5) : 0;
-    anim.bob += dt * (6 + player.speed * 1.2);
-    const bobX = Math.sin(anim.bob) * 0.012 * moving;
-    const bobY = Math.abs(Math.cos(anim.bob)) * 0.014 * moving;
-    const r = anim.reloadTotal > 0 ? anim.reload / anim.reloadTotal : 0;
-    const dip = Math.sin(Math.min(1, r) * Math.PI);
-    const crouch = player.crouching ? 0.012 : 0;
-    rig.position.set(0.19 + bobX + anim.swayX, -0.2 - bobY - dip * 0.12 - anim.raise * 0.25 + anim.swayY - crouch, -0.46 + anim.kick + anim.swing * -0.12);
-    rig.rotation.set(anim.kickRot + dip * 0.5 - anim.raise * 0.6 + anim.swing * -0.5, 0.05 + anim.swayX * 2 + Math.sin(time * 0.9) * 0.004, dip * 0.35 + anim.swing * 0.4);
-    const model = models[heldId];
-    const tip = model.userData.muzzle;
-    flash.position.copy(tip); flashGlow.position.copy(tip);
-    flash.visible = anim.flash > 0; flashGlow.visible = anim.flash > 0;
-  }
-
-  function render(renderer, aspect) {
-    camera.aspect = aspect;
-    camera.updateProjectionMatrix();
-    renderer.clearDepth();
-    renderer.render(scene, camera);
-  }
-
-  return { onEvent, update, render };
-}

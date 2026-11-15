@@ -62,7 +62,7 @@ export function createEffects(scene, state) {
   // tracers: a unit-length bar stretched from muzzle to impact
   const tracerGeo = new THREE.BoxGeometry(0.025, 0.025, 1);
   tracerGeo.translate(0, 0, -0.5);
-  const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffd28a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const tracerMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.8), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
   const tracers = Array.from({ length: 32 }, () => {
     const m = new THREE.Mesh(tracerGeo, tracerMat);
     m.visible = false; scene.add(m);
@@ -127,7 +127,7 @@ export function createEffects(scene, state) {
   const bombPanel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.12), new THREE.MeshStandardMaterial({ color: 0x0c1410, emissive: 0x33ff88, emissiveIntensity: 0.6 }));
   bombPanel.position.set(0.06, 0.09, 0);
   bomb.add(bombPanel);
-  const bombLamp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
+  const bombLamp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 0.5, 0.25) }));
   bombLamp.position.set(-0.13, 0.1, 0.07);
   bomb.add(bombLamp);
   const bombLight = new THREE.PointLight(0xff2a1a, 0, 5, 2);

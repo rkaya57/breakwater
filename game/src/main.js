@@ -15,6 +15,7 @@ import { createEffects } from './effects.js';
 import { createSoldiers } from './soldiers.js';
 import { createWorld } from './world.js';
 import { createViewmodel } from './viewmodel.js';
+import { createPost } from './post.js';
 import { dressHarbour } from './dressing.js';
 import { createTextures } from './textures.js';
 
@@ -30,10 +31,10 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
 renderer.autoClear = false;
 $('game').appendChild(renderer.domElement);
+const post = createPost(renderer);
+post.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.05, 400);
@@ -56,7 +57,7 @@ function newMatch(team, seed) {
   scene.add(matchGroup);
   state = createState(seed, team);
   soldiers = createSoldiers(matchGroup, state);
-  viewmodel = createViewmodel(team);
+  viewmodel = createViewmodel(team, scene.environment);
   effects = createEffects(matchGroup, state);
   hud = createHud(state);
   buyMenu = createBuyMenu(state, $('buy'), () => setBuy(false));
@@ -145,16 +146,14 @@ function present(dt, alpha) {
   audio.update(viewer);
   hud.update(viewer, input.keys.has('Tab') || state.phase === 'over' || (shotName === 'board'), camera.fov);
   shake = Math.max(0, shake - dt * 2.5);
-  renderer.clear();
-  renderer.render(scene, camera);
-  viewmodel.render(renderer, camera.aspect);
+  post.render(() => { renderer.render(scene, camera); viewmodel.render(renderer, camera.aspect); }, state.time);
 }
 
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
-  if (!state || frozen) { if (!state) { renderer.clear(); renderer.render(scene, camera); } return; }
+  if (!state || frozen) { if (!state) post.render(() => renderer.render(scene, camera), now / 1000); return; }
   const playing = input.locked() && !paused;
   handleKeys();
   const moved = applyControls(input, state.player, SENSITIVITY, playing && !buyOpenNow);
@@ -178,6 +177,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  post.setSize(window.innerWidth, window.innerHeight);
 });
 
 if (shotName) {

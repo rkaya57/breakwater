@@ -3,7 +3,7 @@
 // horizon, sodium lamps and the dusk sky. Every solid you see is a cell the simulation collides with.
 import * as THREE from 'three';
 import { COLS, ROWS, KIND, kindAt, cellX, cellZ, zoneRects, SPOTS } from './map.js';
-import { CELL } from './config.js';
+import { CELL, EXPOSURE } from './config.js';
 import { createRng } from './rng.js';
 
 const WALL_H = 5.2;
@@ -29,10 +29,20 @@ function mesh(geo, mat, x, y, z, shadows = true) {
   return m;
 }
 
+// For the hand-written sky and water shaders, whose colours were picked as final screen colours:
+// undo sRGB and then the ACES curve so they come out of the finishing pass as they were authored.
+const FROM_DISPLAY_GLSL = /* glsl */`
+  vec3 fromDisplay(vec3 c) {
+    c = clamp(c, 0.0, 0.985);
+    c = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+    vec3 a = 2.51 - 2.43 * c; vec3 b = 0.03 - 0.59 * c; vec3 k = -0.14 * c;
+    return (-b + sqrt(b * b - 4.0 * a * k)) / (2.0 * a) / ${EXPOSURE.toFixed(2)};
+  }`;
+
 function skyDome() {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { sunDir: { value: new THREE.Vector3(-0.55, 0.16, 0.82).normalize() } },
+    uniforms: { sunDir: { value: new THREE.Vector3(-0.55, 0.16, 0.82).normalize() }, graded: { value: 0 } },
     vertexShader: /* glsl */`
       varying vec3 vDir;
       void main() {
@@ -40,8 +50,9 @@ function skyDome() {
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: /* glsl */`
-      uniform vec3 sunDir;
+      uniform vec3 sunDir; uniform float graded;
       varying vec3 vDir;
+      ${FROM_DISPLAY_GLSL}
       void main() {
         float h = clamp(vDir.y, -0.2, 1.0);
         vec3 zenith = vec3(0.10, 0.15, 0.30);
@@ -53,7 +64,7 @@ function skyDome() {
         col += vec3(1.0, 0.62, 0.3) * pow(sun, 18.0) * 0.6 + vec3(1.0, 0.85, 0.6) * pow(sun, 900.0) * 2.0;
         float streak = sin(vDir.x * 9.0 + vDir.z * 4.0) * 0.5 + 0.5;          // thin cloud bands
         col = mix(col, vec3(0.86, 0.45, 0.42), smoothstep(0.06, 0.2, h) * smoothstep(0.32, 0.16, h) * streak * 0.35);
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(graded > 0.5 ? fromDisplay(col) : col, 1.0);
       }`,
   });
   return new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), mat);
@@ -79,13 +90,14 @@ function water() {
       #include <fog_pars_fragment>
       uniform float time;
       varying vec3 vWorld;
+      ${FROM_DISPLAY_GLSL}
       void main() {
         float ripple = sin(vWorld.x * 1.7 + time * 1.9) * sin(vWorld.z * 1.3 - time * 1.4);
         float glint = smoothstep(0.82, 1.0, ripple) * smoothstep(-40.0, 60.0, vWorld.z);
         vec3 deep = vec3(0.04, 0.17, 0.21);
         vec3 lit = vec3(0.35, 0.36, 0.33);
         vec3 col = mix(deep, lit, 0.25 + ripple * 0.12) + vec3(1.0, 0.62, 0.32) * glint * 0.55;
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(fromDisplay(col) + vec3(1.6, 1.0, 0.5) * glint * 0.8, 1.0); // glints overshoot into bloom
         #include <fog_fragment>
       }`,
   });
@@ -305,7 +317,7 @@ function ship(group, x, z, rot, hull, tex) {
 
 function lamps(group) {
   const pole = new THREE.MeshStandardMaterial({ color: 0x2b2f33, roughness: 0.6, metalness: 0.5 });
-  const bulb = new THREE.MeshBasicMaterial({ color: 0xffd08a });
+  const bulb = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 3.4, 1.8) }); // HDR, so lamps bloom
   const lightCone = new THREE.ConeGeometry(2.4, 5.8, 20, 1, true);
   const coneMat = new THREE.MeshBasicMaterial({ color: 0xffb35c, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const places = [[3, 10], [36, 10], [20, 14], [25, 34], [4, 24], [35, 26], [10, 3], [30, 4]];
@@ -323,7 +335,7 @@ function lamps(group) {
     }
   });
   // string lights over the fish market
-  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.07, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffc66b }), 60);
+  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.07, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.05, 0.45) }), 60);
   const m = new THREE.Matrix4();
   for (let i = 0; i < 60; i += 1) {
     const t = (i % 20) / 19; const line = Math.floor(i / 20);
@@ -376,13 +388,19 @@ export function createWorld(scene, tex, renderer) {
   const skyScene = new THREE.Scene();
   skyScene.add(sky.clone());
   scene.environment = pmrem.fromScene(skyScene, 0.03).texture;
-  scene.environmentIntensity = 0.8;
+  scene.environmentIntensity = 1.0;
   pmrem.dispose();
+  sky.material.uniforms.graded.value = 1; // lighting keeps the old radiance; the visible dome goes through post
   const sea = water();
   group.add(sea);
 
-  const hemi = new THREE.HemisphereLight(0xffd2b0, 0x3a4a56, 1.4);
+  const hemi = new THREE.HemisphereLight(0xffd2b0, 0x5a5048, 1.6);
   scene.add(hemi);
+  // the far side of the sky: a cool, shadowless fill from opposite the sun so faces turned away from
+  // it keep their form (bricks, door frames, soldiers' kit) instead of falling to flat black
+  const fill = new THREE.DirectionalLight(0x9ab8d8, 0.9);
+  fill.position.set(40, 30, -45);
+  scene.add(fill);
   const sun = new THREE.DirectionalLight(0xffb27a, 2.6);
   sun.position.set(-38, 26, 52);
   sun.target.position.set(0, 0, 0);
