@@ -201,13 +201,14 @@ function buildProps(group, tex, rng) {
   }
   // the pump: a steel skid, two tanks and a pipe manifold over cells (30..31, 9..10)
   const steel = new THREE.MeshStandardMaterial({ map: tex.metal, roughness: 0.5, metalness: 0.7 });
-  const paint = new THREE.MeshStandardMaterial({ color: 0xc7462f, roughness: 0.55, metalness: 0.3 });
+  const paint = new THREE.MeshStandardMaterial({ color: 0x8e4a33, roughness: 0.62, metalness: 0.35 });
   const px = (cellX(30) + cellX(31)) / 2; const pz = (cellZ(9) + cellZ(10)) / 2;
   group.add(mesh(new THREE.BoxGeometry(3.9, 0.4, 3.9), steel, px, 0.2, pz));
   for (const dx of [-0.95, 0.95]) {
     const tank = mesh(new THREE.CylinderGeometry(0.85, 0.85, 1.9, 20), paint, px + dx, 1.35, pz);
     group.add(tank);
     group.add(mesh(new THREE.SphereGeometry(0.85, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), paint, px + dx, 2.3, pz));
+    for (const y of [0.75, 1.95]) group.add(mesh(new THREE.TorusGeometry(0.86, 0.035, 6, 24), steel, px + dx, y, pz, false).rotateX(Math.PI / 2));
   }
   const pipe = new THREE.CylinderGeometry(0.16, 0.16, 3.9, 10);
   const p1 = mesh(pipe, steel, px, 1.9, pz + 1.3); p1.rotation.z = Math.PI / 2; group.add(p1);
@@ -305,6 +306,8 @@ function ship(group, x, z, rot, hull, tex) {
 function lamps(group) {
   const pole = new THREE.MeshStandardMaterial({ color: 0x2b2f33, roughness: 0.6, metalness: 0.5 });
   const bulb = new THREE.MeshBasicMaterial({ color: 0xffd08a });
+  const lightCone = new THREE.ConeGeometry(2.4, 5.8, 20, 1, true);
+  const coneMat = new THREE.MeshBasicMaterial({ color: 0xffb35c, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const places = [[3, 10], [36, 10], [20, 14], [25, 34], [4, 24], [35, 26], [10, 3], [30, 4]];
   places.forEach(([c, r], i) => {
     const x = cellX(c) + (c < 20 ? -0.7 : 0.7); const z = cellZ(r);
@@ -312,6 +315,7 @@ function lamps(group) {
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.3), bulb);
     head.position.set(x, 6, z);
     group.add(head);
+    group.add(mesh(lightCone, coneMat, x, 3.1, z, false)); // the lamp's haze
     if (i < 4) { // only a few real lights; the rest glow
       const light = new THREE.PointLight(0xffa54a, 22, 18, 1.6);
       light.position.set(x, 5.6, z);
@@ -357,19 +361,27 @@ function signs(group, tex) {
   });
 }
 
-// `tex` is the painted texture set (textures.js), handed in by the caller.
-export function createWorld(scene, tex) {
+// `tex` is the painted texture set (textures.js), handed in by the caller; the renderer prefilters
+// the dusk sky into the environment map every glossy surface reflects.
+export function createWorld(scene, tex, renderer) {
   const rng = createRng(4242);
   const group = new THREE.Group();
   scene.add(group);
 
   scene.background = new THREE.Color(0xf0a070);
   scene.fog = new THREE.Fog(0xd98d6a, 40, 170);
-  group.add(skyDome());
+  const sky = skyDome();
+  group.add(sky);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const skyScene = new THREE.Scene();
+  skyScene.add(sky.clone());
+  scene.environment = pmrem.fromScene(skyScene, 0.03).texture;
+  scene.environmentIntensity = 0.8;
+  pmrem.dispose();
   const sea = water();
   group.add(sea);
 
-  const hemi = new THREE.HemisphereLight(0xffd2b0, 0x30404a, 1.15);
+  const hemi = new THREE.HemisphereLight(0xffd2b0, 0x3a4a56, 1.4);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffb27a, 2.6);
   sun.position.set(-38, 26, 52);
@@ -394,6 +406,7 @@ export function createWorld(scene, tex) {
   ship(group, 30, -58, Math.PI - 0.08, 0x8a2f24, tex);
 
   return {
+    group,
     update(time) { sea.material.uniforms.time.value = time; },
   };
 }

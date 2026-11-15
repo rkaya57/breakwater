@@ -10,11 +10,12 @@ import { buyOpen } from './shop.js';
 import { createInput, applyControls } from './input.js';
 import { createHud } from './hud.js';
 import { createBuyMenu } from './buymenu.js';
-import { createWorld } from './world.js';
-import { createSoldiers } from './soldiers.js';
-import { createViewmodel } from './viewmodel.js';
-import { createEffects } from './effects.js';
 import { createAudio } from './audio.js';
+import { createEffects } from './effects.js';
+import { createSoldiers } from './soldiers.js';
+import { createWorld } from './world.js';
+import { createViewmodel } from './viewmodel.js';
+import { dressHarbour } from './dressing.js';
 import { createTextures } from './textures.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -36,7 +37,9 @@ $('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.05, 400);
-const world = createWorld(scene, createTextures());
+const textures = createTextures();
+const world = createWorld(scene, textures, renderer);
+const dressing = dressHarbour(world.group, textures);
 const audio = createAudio();
 const input = createInput(renderer.domElement, onLockChange);
 
@@ -137,6 +140,7 @@ function present(dt, alpha) {
   soldiers.views[viewer.id].root.visible = false;
   effects.update(dt, state.time);
   world.update(state.time);
+  dressing(state.time);
   viewmodel.update(dt, viewer, heldId(viewer), look.dx, look.dy, state.time);
   audio.update(viewer);
   hud.update(viewer, input.keys.has('Tab') || state.phase === 'over' || (shotName === 'board'), camera.fov);

@@ -121,12 +121,12 @@ const STAGES = {
     stats(s, [[14, 8, 4, 6150], [9, 9, 2, 5400], [11, 8, 1, 7300], [6, 10, 1, 4800], [8, 9, 2, 5900],
       [12, 9, 3, 0], [10, 10, 2, 0], [7, 11, 0, 0], [9, 9, 1, 0], [6, 10, 0, 0]]);
     const me = s.player;
-    place(me, 23, 26, 17, 9); arm(me, 'marlin');
+    place(me, 23, 25, 12, 21); arm(me, 'marlin');
     me.pitch = 0.08;
     s.phase = 'post'; s.phaseTime = 0.5;
     s.roundWinner = TEAM.ATK; s.roundReason = 'Charge detonated'; s.mvp = me; me.roundKills = 3;
     s.events.emit('roundEnd', { value: TEAM.ATK, text: `Charge detonated` });
-    ctx.present(STEP);
+    ctx.present(3); // let any raise or reload animation finish
     ctx.present(STEP);
   },
 };

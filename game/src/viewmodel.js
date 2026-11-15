@@ -17,43 +17,72 @@ function cyl(r, len, mat, x, y, z, seg = 12) {
   return m;
 }
 
+// A rail: n small teeth along -z from z0, on top of a receiver at height y.
+function rail(g, mat, y, z0, n) {
+  for (let i = 0; i < n; i += 1) g.add(box(0.032, 0.012, 0.014, mat, 0, y, z0 - i * 0.03));
+}
+
+// Iron sights: a rear notch and a front post.
+function sights(g, mat, y, zRear, zFront) {
+  g.add(box(0.03, 0.03, 0.02, mat, 0, y, zRear), box(0.008, 0.035, 0.012, mat, 0, y + 0.002, zFront));
+}
+
 function buildModels() {
-  const black = new THREE.MeshStandardMaterial({ color: 0x1b1d20, roughness: 0.45, metalness: 0.6 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x2c3034, roughness: 0.4, metalness: 0.55 });
   const steel = new THREE.MeshStandardMaterial({ color: 0x8b9298, roughness: 0.3, metalness: 0.85 });
   const tan = new THREE.MeshStandardMaterial({ color: 0xa88b5c, roughness: 0.7 });
   const olive = new THREE.MeshStandardMaterial({ color: 0x4f5a3a, roughness: 0.7 });
   const wood = new THREE.MeshStandardMaterial({ color: 0x6b4325, roughness: 0.6 });
   const glass = new THREE.MeshStandardMaterial({ color: 0x3fa7c0, roughness: 0.1, metalness: 0.4, emissive: 0x0b3540 });
+  const polymer = new THREE.MeshStandardMaterial({ color: 0x3a3d40, roughness: 0.75 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xc9a14a, roughness: 0.35, metalness: 0.8 });
   const m = {};
   // each model's muzzle is the userData.muzzle point (local), used for the flash
   let g = new THREE.Group();
   g.add(box(0.05, 0.06, 0.24, black, 0, 0.02, -0.08), box(0.045, 0.12, 0.06, black, 0, -0.06, 0.0), box(0.05, 0.02, 0.2, steel, 0, 0.055, -0.08));
+  g.add(box(0.012, 0.03, 0.05, black, 0, -0.025, -0.06), box(0.052, 0.025, 0.07, polymer, 0, -0.02, 0.0), box(0.006, 0.03, 0.05, steel, 0.026, 0.05, -0.04));
+  sights(g, black, 0.075, 0.0, -0.17);
   g.userData.muzzle = new THREE.Vector3(0, 0.03, -0.22);
   m.pike = g;
   g = new THREE.Group();
   g.add(box(0.06, 0.08, 0.3, steel, 0, 0.02, -0.1), box(0.055, 0.14, 0.07, wood, 0, -0.07, 0.01), cyl(0.018, 0.08, steel, 0, 0.02, -0.28));
+  g.add(cyl(0.035, 0.07, steel, 0, 0.0, -0.05, 6), box(0.012, 0.035, 0.06, black, 0, -0.035, -0.06));
+  for (let i = 0; i < 6; i += 1) { const a = i * Math.PI / 3; g.add(cyl(0.007, 0.01, brass, Math.cos(a) * 0.022, Math.sin(a) * 0.022, -0.012, 6)); }
+  sights(g, black, 0.075, 0.03, -0.24);
   g.userData.muzzle = new THREE.Vector3(0, 0.02, -0.32);
   m.brute = g;
   g = new THREE.Group();
   g.add(box(0.07, 0.1, 0.38, black, 0, 0, -0.12), box(0.04, 0.2, 0.06, black, 0, -0.14, -0.12), box(0.05, 0.11, 0.06, olive, 0, -0.08, 0.02),
     cyl(0.017, 0.14, steel, 0, 0.01, -0.36), box(0.03, 0.03, 0.22, black, 0, 0.07, -0.08), box(0.05, 0.06, 0.18, olive, 0, -0.01, 0.15));
+  rail(g, black, 0.088, -0.0, 6);
+  g.add(cyl(0.026, 0.06, black, 0, 0.01, -0.4, 10), box(0.072, 0.05, 0.12, polymer, 0, -0.035, -0.26), box(0.01, 0.03, 0.06, steel, 0.037, 0.02, -0.05));
+  sights(g, black, 0.1, 0.05, -0.27);
   g.userData.muzzle = new THREE.Vector3(0, 0.01, -0.44);
   m.wasp = g;
   g = new THREE.Group();
   const mag = box(0.045, 0.2, 0.08, black, 0, -0.13, -0.12); mag.rotation.x = 0.25;
   g.add(box(0.07, 0.11, 0.5, tan, 0, 0, -0.1), box(0.06, 0.08, 0.3, black, 0, 0.01, -0.45), cyl(0.016, 0.22, steel, 0, 0.02, -0.68),
     mag, box(0.05, 0.12, 0.06, black, 0, -0.1, 0.06), box(0.06, 0.1, 0.22, tan, 0, -0.02, 0.25), box(0.03, 0.04, 0.26, black, 0, 0.08, -0.12));
+  rail(g, black, 0.105, -0.0, 7);
+  g.add(cyl(0.03, 0.07, black, 0, 0.02, -0.8, 6), box(0.012, 0.045, 0.02, black, 0, 0.09, -0.6), box(0.012, 0.035, 0.08, black, 0, -0.075, -0.02),
+    box(0.012, 0.035, 0.07, steel, 0.037, 0.03, -0.1), box(0.074, 0.02, 0.26, black, 0, 0.05, -0.45));
+  for (let i = 0; i < 4; i += 1) g.add(box(0.075, 0.015, 0.03, black, 0, -0.02, -0.36 - i * 0.06)); // handguard vents
   g.userData.muzzle = new THREE.Vector3(0, 0.02, -0.8);
   m.marlin = g;
   g = new THREE.Group();
   const mag2 = box(0.045, 0.18, 0.08, black, 0, -0.12, 0.12); mag2.rotation.x = 0.15;
   g.add(box(0.075, 0.12, 0.62, olive, 0, 0, 0.0), cyl(0.017, 0.2, steel, 0, 0.02, -0.4), mag2, box(0.05, 0.12, 0.06, black, 0, -0.1, -0.12),
     box(0.04, 0.06, 0.16, black, 0, 0.1, -0.08), box(0.05, 0.04, 0.03, glass, 0, 0.1, -0.15));
+  g.add(cyl(0.025, 0.05, black, 0, 0.02, -0.5, 10), box(0.06, 0.04, 0.14, polymer, 0, -0.08, -0.25), box(0.01, 0.03, 0.08, steel, 0.039, 0.03, 0.05),
+    box(0.082, 0.02, 0.1, black, 0, 0.0, 0.22), box(0.04, 0.07, 0.02, black, 0, 0.1, 0.0));
   g.userData.muzzle = new THREE.Vector3(0, 0.02, -0.52);
   m.gull = g;
   g = new THREE.Group();
   g.add(box(0.07, 0.1, 0.6, wood, 0, -0.01, 0.05), cyl(0.02, 0.6, black, 0, 0.02, -0.55), cyl(0.035, 0.34, black, 0, 0.11, -0.08, 16),
     cyl(0.045, 0.04, black, 0, 0.11, -0.26, 16), cyl(0.042, 0.04, glass, 0, 0.11, 0.1, 16), box(0.04, 0.12, 0.06, black, 0, -0.1, -0.04), box(0.02, 0.02, 0.08, steel, 0.05, 0.04, 0.0));
+  g.add(cyl(0.032, 0.09, black, 0, 0.02, -0.86, 8), cyl(0.012, 0.06, steel, 0.05, 0.11, -0.08, 8), box(0.074, 0.03, 0.12, black, 0, 0.0, 0.32),
+    box(0.03, 0.05, 0.03, black, 0, 0.06, -0.2), box(0.03, 0.05, 0.03, black, 0, 0.06, 0.04));
+  for (let i = 0; i < 5; i += 1) g.add(cyl(0.006, 0.03, brass, 0.038, -0.02, 0.2 - i * 0.025, 6)); // spare rounds on the stock
   g.userData.muzzle = new THREE.Vector3(0, 0.02, -0.86);
   m.harpoon = g;
   g = new THREE.Group();
@@ -94,10 +123,12 @@ export function createViewmodel(team) {
   scene.add(new THREE.HemisphereLight(0xffd8b8, 0x334455, 2.2));
   const key = new THREE.DirectionalLight(0xffb27a, 1.6);
   key.position.set(-1, 1.2, 1.4);
-  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x9fd0ff, 0.9); // cool sky light catching the top edges
+  rim.position.set(0.6, 1, -1);
+  scene.add(key, rim);
 
   const rig = new THREE.Group();
-  rig.scale.setScalar(0.82);
+  rig.scale.setScalar(0.7);
   scene.add(rig);
   const glove = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8 });
   const sleeve = new THREE.MeshStandardMaterial({ color: TEAMS[team].cloth, roughness: 0.85 });
@@ -163,8 +194,8 @@ export function createViewmodel(team) {
     const r = anim.reloadTotal > 0 ? anim.reload / anim.reloadTotal : 0;
     const dip = Math.sin(Math.min(1, r) * Math.PI);
     const crouch = player.crouching ? 0.012 : 0;
-    rig.position.set(0.2 + bobX + anim.swayX, -0.19 - bobY - dip * 0.12 - anim.raise * 0.25 + anim.swayY - crouch, -0.4 + anim.kick + anim.swing * -0.12);
-    rig.rotation.set(anim.kickRot + dip * 0.5 - anim.raise * 0.6 + anim.swing * -0.5, anim.swayX * 2 + Math.sin(time * 0.9) * 0.004, dip * 0.35 + anim.swing * 0.4);
+    rig.position.set(0.19 + bobX + anim.swayX, -0.2 - bobY - dip * 0.12 - anim.raise * 0.25 + anim.swayY - crouch, -0.46 + anim.kick + anim.swing * -0.12);
+    rig.rotation.set(anim.kickRot + dip * 0.5 - anim.raise * 0.6 + anim.swing * -0.5, 0.05 + anim.swayX * 2 + Math.sin(time * 0.9) * 0.004, dip * 0.35 + anim.swing * 0.4);
     const model = models[heldId];
     const tip = model.userData.muzzle;
     flash.position.copy(tip); flashGlow.position.copy(tip);

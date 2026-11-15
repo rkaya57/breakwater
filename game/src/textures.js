@@ -119,15 +119,23 @@ function metal(seed) {
   return finish(c);
 }
 
+// Sets the largest font (from `size` down) at which `text` fits in `maxWidth` pixels.
+function fitFont(g, text, pattern, size, maxWidth) {
+  let s = size;
+  do { g.font = pattern.replace('{}', s); s -= 2; } while (s > 10 && g.measureText(text).width > maxWidth);
+}
+
 // A painted sign: text on a coloured board, used for callouts on walls.
 function signTexture(text, sub, bg, fg) {
   const [c, g] = canvas(512, 160);
   g.fillStyle = bg; g.fillRect(0, 0, 512, 160);
   g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(10, 10, 492, 140);
   g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = 'bold 60px "Arial Black", Impact, sans-serif';
+  fitFont(g, text, 'bold {}px "Arial Black", Impact, sans-serif', 60, 452);
   g.fillText(text, 256, sub ? 66 : 82);
-  if (sub) { g.font = 'bold 26px Arial, sans-serif'; g.fillText(sub, 256, 120); }
+  if (sub) { fitFont(g, sub, 'bold {}px Arial, sans-serif', 28, 440); g.fillText(sub, 256, 120); }
+  for (const [x, y] of [[24, 24], [488, 24], [24, 136], [488, 136]]) { g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill(); }
+  grain(g, 512, 160, createRng(text.length * 31), 900, 0.18); // weathering
   return finish(c, false);
 }
 
